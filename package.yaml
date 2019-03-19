@@ -1,0 +1,28 @@
+name:                atrade-monitor
+version:             0.1.0.0
+#synopsis:
+#description:
+homepage:            https://github.com/githubuser/atrade-monitor#readme
+license:             BSD3
+author:              Denis Tereshkin
+maintainer:          denis@kasan.ws
+copyright:           2019 Denis Tereshkin
+category:            Web
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - process
+  - aeson
+  - unordered-containers
+  - text
+  - safe
+
+default-extensions:
+  - OverloadedStrings
+
+executables:
+  atrade-monitor:
+    source-dirs:      src
+    main:             Main.hs
