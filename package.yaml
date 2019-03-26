@@ -18,6 +18,7 @@ dependencies:
   - unordered-containers
   - text
   - safe
+  - unagi-chan
 
 default-extensions:
   - OverloadedStrings

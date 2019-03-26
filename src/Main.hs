@@ -1,12 +1,16 @@
 module Main where
 
-import           Control.Concurrent
+import           Control.Concurrent            hiding (newChan, readChan,
+                                                writeChan)
+import           Control.Concurrent.Chan.Unagi
 import           Control.Monad
 import           Data.Aeson
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text           as T
+import qualified Data.HashMap.Strict           as HM
+import qualified Data.Text                     as T
+import qualified Data.Text.IO                  as TIO
 import           Safe
 import           System.Environment
+import           System.IO
 import           System.Process
 
 newtype ArgsMap = ArgsMap { unArgsMap :: HM.HashMap T.Text T.Text }
@@ -69,17 +73,26 @@ main = do
 
 runWithConfig :: Config -> IO ()
 runWithConfig config = do
+  (inChan, outChan) <- newChan
   threadIds <- forM (zip [0..] (cExecutables config)) $ \(i, execcfg) -> do
     threadDelay (1000000 * i * cDelay config)
-    (mbStdIn, mbStdOut, mbStdErr, ph) <- createProcess $ proc (cExecutablePath execcfg) (makeArgs (cGlobalArgs config) (cArgs execcfg))
-    undefined
-  forever $ threadDelay 1000000
+    (_, Just stdOut, Just stdErr, ph) <- createProcess $ (proc (cExecutablePath execcfg) (makeArgs (cGlobalArgs config) (cArgs execcfg))) { std_out = CreatePipe, std_err = CreatePipe }
+    withFile (cLogPath execcfg) WriteMode $ \log -> do
+      stdErrLogThread <- forkIO $ forever $ do
+        line <- TIO.hGetLine stdErr
+        TIO.hPutStrLn log line
+        writeChan inChan line
+      forever $ do
+        line <- TIO.hGetLine stdOut
+        TIO.hPutStrLn log line
+        writeChan inChan line
 
+  globalLogger outChan
 
   where
     makeArgs globalArgs localArgs = fmap makeArg (HM.toList . unArgsMap $ globalArgs) ++ fmap makeArg (HM.toList . unArgsMap $ localArgs)
     makeArg (k, v) = T.unpack $ if v /= "" then "--" <> k <> "=" <> v else "--" <> k
-
-
-
-
+    globalLogger chan = withFile (cGlobalLog config) WriteMode $ \log -> do
+      line <- readChan chan
+      TIO.hPutStrLn log line
+      TIO.putStrLn line
