@@ -84,11 +84,12 @@ runWithConfig config = do
       (_, Just stdOut, Just stdErr, ph) <- createProcess $ (proc (cExecutablePath execcfg) (makeArgs (cGlobalArgs config) (cArgs execcfg))) { std_out = CreatePipe, std_err = CreatePipe }
       withFile (cLogPath execcfg) AppendMode $ \log -> handleIO (exceptionHandler inChan) $ do
         stdErrLogThread <- forkIO $ forever $ do
+          line <- T.pack <$> hGetLine stdErr
           now <- getCurrentTime
-          line <- lineWithTime now . T.pack <$> hGetLine stdErr
-          TIO.hPutStrLn log line
+          let line' = lineWithTime now line
+          TIO.hPutStrLn log line'
           hFlush log
-          writeChan inChan line
+          writeChan inChan line'
         forever $ do
           now <- getCurrentTime
           line <- lineWithTime now . T.pack <$> hGetLine stdOut
