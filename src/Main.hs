@@ -3,11 +3,14 @@ module Main where
 import           Control.Concurrent            hiding (newChan, readChan,
                                                 writeChan)
 import           Control.Concurrent.Chan.Unagi
+import           Control.Exception.Safe
 import           Control.Monad
 import           Data.Aeson
 import qualified Data.HashMap.Strict           as HM
 import qualified Data.Text                     as T
 import qualified Data.Text.IO                  as TIO
+import           Data.Time.Clock
+import           Data.Time.Format
 import           Safe
 import           System.Environment
 import           System.IO
@@ -76,23 +79,36 @@ runWithConfig config = do
   (inChan, outChan) <- newChan
   threadIds <- forM (zip [0..] (cExecutables config)) $ \(i, execcfg) -> do
     threadDelay (1000000 * i * cDelay config)
-    (_, Just stdOut, Just stdErr, ph) <- createProcess $ (proc (cExecutablePath execcfg) (makeArgs (cGlobalArgs config) (cArgs execcfg))) { std_out = CreatePipe, std_err = CreatePipe }
-    withFile (cLogPath execcfg) WriteMode $ \log -> do
-      stdErrLogThread <- forkIO $ forever $ do
-        line <- TIO.hGetLine stdErr
-        TIO.hPutStrLn log line
-        writeChan inChan line
-      forever $ do
-        line <- TIO.hGetLine stdOut
-        TIO.hPutStrLn log line
-        writeChan inChan line
+    forkIO $ do
+      putStrLn $ "Creating process: " ++ cExecutablePath execcfg
+      (_, Just stdOut, Just stdErr, ph) <- createProcess $ (proc (cExecutablePath execcfg) (makeArgs (cGlobalArgs config) (cArgs execcfg))) { std_out = CreatePipe, std_err = CreatePipe }
+      withFile (cLogPath execcfg) AppendMode $ \log -> handleIO (exceptionHandler inChan) $ do
+        stdErrLogThread <- forkIO $ forever $ do
+          now <- getCurrentTime
+          line <- lineWithTime now . T.pack <$> hGetLine stdErr
+          TIO.hPutStrLn log line
+          hFlush log
+          writeChan inChan line
+        forever $ do
+          now <- getCurrentTime
+          line <- lineWithTime now . T.pack <$> hGetLine stdOut
+          TIO.hPutStrLn log line
+          hFlush log
+          writeChan inChan line
 
   globalLogger outChan
 
   where
     makeArgs globalArgs localArgs = fmap makeArg (HM.toList . unArgsMap $ globalArgs) ++ fmap makeArg (HM.toList . unArgsMap $ localArgs)
     makeArg (k, v) = T.unpack $ if v /= "" then "--" <> k <> "=" <> v else "--" <> k
-    globalLogger chan = withFile (cGlobalLog config) WriteMode $ \log -> do
+    globalLogger chan = withFile (cGlobalLog config) AppendMode $ \log -> forever $ do
       line <- readChan chan
       TIO.hPutStrLn log line
-      TIO.putStrLn line
+      putStrLn $ T.unpack line
+      hFlush log
+      hFlush stdout
+      hFlush stderr
+    exceptionHandler inChan exception = do
+      writeChan inChan $ "Exception: " `T.append` (T.pack . show $ exception)
+
+    lineWithTime time line = ("[" `T.append` (T.pack $ formatTime defaultTimeLocale (iso8601DateFormat (Just "%T.%q")) time) `T.append` "] > " `T.append` line)
