@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dab67d56afaa7dcc061e0130cc7ad1f8d8d8fc8b43f6d30a8662091a0a8bd9ac
+-- hash: 4141f70beaab8672b6e6b4e228dcd630fdb6ab5cb7e81f88d9c047293d6b1081
 
 name:           atrade-monitor
 version:        0.1.0.0
@@ -25,7 +25,8 @@ executable atrade-monitor
       Paths_atrade_monitor
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings
+  default-extensions:
+      OverloadedStrings
   ghc-options: -threaded
   build-depends:
       aeson

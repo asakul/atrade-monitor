@@ -77,9 +77,11 @@ main = do
 runWithConfig :: Config -> IO ()
 runWithConfig config = do
   (inChan, outChan) <- newChan
-  threadIds <- forM (zip [0..] (cExecutables config)) $ \(i, execcfg) -> do
-    threadDelay (1000000 * i * cDelay config)
+  threadIds <- forM (zip [0..] (cExecutables config)) $ \(i, execcfg) ->
     forkIO $ do
+      let delay = 1000000 * i * cDelay config
+      putStrLn $ "Waiting " ++ show delay ++  " to spawn process: " ++ cExecutablePath execcfg
+      threadDelay delay
       putStrLn $ "Creating process: " ++ cExecutablePath execcfg
       (_, Just stdOut, Just stdErr, ph) <- createProcess $ (proc (cExecutablePath execcfg) (makeArgs (cGlobalArgs config) (cArgs execcfg))) { std_out = CreatePipe, std_err = CreatePipe }
       withFile (cLogPath execcfg) AppendMode $ \log -> handleIO (exceptionHandler inChan) $ do
